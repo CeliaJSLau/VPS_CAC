@@ -1,0 +1,188 @@
+#!/bin/bash
+#---------------------------------------------------------------------------#
+#                         CYCLICK CONTROL JOB                               #
+# Shell script name  :    ExecuteVPSCACcsv				    				              #
+# Author             :    Celia Liu                                         #
+# Create Date        :    29,06 2020                                        #
+# Last Modify Date   :    21,11 2020                                        #
+#---------------------------------------------------------------------------#
+
+BASE_DIRECTORY="/home/vps/VPS_CAC_CSV"
+
+LOG_LOCATION="/home/vps/vps_cac.log"
+
+echo "`date +%F' '%T` Now Running ExecuteVPSCACcsv">>$LOG_LOCATION
+
+cd $BASE_DIRECTORY
+
+EXECUTE_FILE_DIRECTORY=$(find . -type d -name 'vps_cac_'`date --date="-1 day" +%F`)
+
+if [ -z "$EXECUTE_FILE_DIRECTORY" ]; 
+then
+    echo "`date +%F' '%T` Today's record is empty">>$LOG_LOCATION
+else
+
+	cat $BASE_DIRECTORY/$EXECUTE_FILE_DIRECTORY/*.csv 1> $BASE_DIRECTORY/tmp/vps_cac_daily_`date --date="-1 day" +%F`.csv  2>>$LOG_LOCATION
+	chmod 755 $BASE_DIRECTORY/tmp/vps_cac_daily_`date --date="-1 day" +%F`.csv
+	if [ $? -ne 0 ]
+     	then
+		echo "`date +%F' '%T` cat file unsuccess">>$LOG_LOCATION
+	else 
+		echo "`date +%F' '%T` cat file successfully">>$LOG_LOCATION
+	fi		
+fi
+
+if [ `date +%d` == "01" ] 
+then
+	echo "`date +%F' '%T` Today is monthly backup day">>$LOG_LOCATION
+	BACKUP=vps_cac_backup_`date +%F`.tar.gz
+	find . -type d -name "vps_cac_*" -not -newermt `date -d "1 month ago" "+%F"` -print0 |tar -czvf $BACKUP --null -T -
+	if [ $? -ne 0 ]
+     	then
+		echo "`date +%F' '%T` BACKUP file unsuccess">>$LOG_LOCATION
+	else 
+		find . -type d -name "vps_cac_*" -not -newermt `date -d "1 month ago" "+%F"` -print0 |xargs -0 -I {} /bin/rm -rf "{}"
+	fi	
+	
+	mv $LOG_LOCATION $LOG_LOCATION.tmp
+	awk -v d="$(date -d "1 months ago" "+%F")" '$1>d' $LOG_LOCATION.tmp >$LOG_LOCATION
+	rm  $LOG_LOCATION.tmp
+	
+fi 
+
+
+
+#!/bin/bash
+#---------------------------------------------------------------------------#
+#                         CYCLICK CONTROL JOB                               #
+# Shell script name  :    GetVPSCACcsv                                      #
+# Author             :    Celia Liu                                         #
+# Create Date        :    29,09 2020                                        #
+# Last Modify Date   :    29,11 2020                                        #
+#---------------------------------------------------------------------------#
+APP_SERVER=""
+APP_SERVER_FILE_PATH="/home/vps/VPS_CAC_CSV"
+LOCAL_FILE_PATH="/home/vps/VPS_CAC_CSV"
+LOG_LOCATION="/home/vps/vps_cac.log"
+
+FILE_LIST=$(ssh support@$APP_SERVER ls $APP_SERVER_FILE_PATH/tmp)
+
+if [ $? -ne 0 ]; 
+then
+	echo "`date +%F' '%T`  cannot ssh to server ">>$LOG_LOCATION            
+	exit 1
+elif [ -z "$FILE_LIST" ]
+then
+	echo "`date +%F' '%T`  no file to export ">>$LOG_LOCATION            
+	exit 1
+fi;
+
+cd $LOCAL_FILE_PATH/tmp
+
+for file in $FILE_LIST
+do
+	scp support@$APP_SERVER:$APP_SERVER_FILE_PATH/tmp/$file $LOCAL_FILE_PATH/tmp 2>>$LOG_LOCATION
+	   
+	if [ $? -ne 0 ]; then
+		echo "`date +%F' '%T`  scp $file unsuccess ">>$LOG_LOCATION
+		continue;
+	else
+		chmod 755 $file
+		echo "`date +%F' '%T`  get $file successfully ">>$LOG_LOCATION
+		ssh support@$APP_SERVER  mv $APP_SERVER_FILE_PATH/tmp/$file $APP_SERVER_FILE_PATH 2>>$LOG_LOCATION
+	fi;
+	
+done
+
+
+
+#!/bin/bash
+#---------------------------------------------------------------------------#
+#                         CYCLICK CONTROL JOB                               #
+# Shell script name  :    ExportVPSCACcsv              			    		#
+# Author             :    Celia Liu                                         #
+# Create Date        :    08 July 2020                                      #
+# Last Modify Date   :    21 Nov 2020                                       #
+#---------------------------------------------------------------------------#
+
+APP_SERVER=""
+APP_SERVER_FILE_PATH="/home/vps/VPS_CAC_CSV"
+LOCAL_FILE_PATH="/home/vps/VPS_CAC_CSV"
+LOG_LOCATION="/home/vps/vps_cac.log"
+DB_SERVER=""
+
+
+MYSQL="/opt/mysql-8.0.21-el7-x86_64/bin/mysql"
+status=0
+
+
+echo "`date +%F' '%T`  Now Running ExportVPScaccsv">>$LOG_LOCATION
+
+FILE_LIST=$(ssh support@$APP_SERVER ls $APP_SERVER_FILE_PATH/tmp)
+if [ $? -ne 0 ]; 
+then
+	echo "`date` cannot ssh to server `date`">>$LOG_LOCATION            
+elif [ -z "$FILE_LIST" ]
+then
+	echo "`date +%F' '%T` no file to export ">>$LOG_LOCATION  	
+else 
+	cd $LOCAL_FILE_PATH/tmp
+	for file in $FILE_LIST;	do
+		scp support@$APP_SERVER:$APP_SERVER_FILE_PATH/tmp/$file $LOCAL_FILE_PATH/tmp 2>>$LOG_LOCATION	   
+		if [ $? -ne 0 ]; then
+			echo "`date +%F' '%T` scp $file unsuccess ">>$LOG_LOCATION
+			continue;
+		else
+			chmod 755 $file
+			ssh support@$APP_SERVER rm $APP_SERVER_FILE_PATH/tmp/$file 2>>$LOG_LOCATION			
+		fi;	
+		echo "`date +%F' '%T` get $file successfully ">>$LOG_LOCATION
+	done
+fi;
+
+cd $LOCAL_FILE_PATH/tmp
+
+for file in * 
+do
+	
+ 	$MYSQL  --port=3306 --local-infile=1 -u VPS_PROD -h $DB_SERVER -p -e " LOAD DATA LOCAL INFILE '${file}' INTO TABLE vps_prod.tb_cac_data character set utf8mb4 FIELDS TERMINATED BY '|' LINES TERMINATED BY '\n'(TIMESTAMP,VENUE_ID,VENUE_NAME,CATEGORY,COMPLIMENT);" \
+	2>>$LOG_LOCATION
+	
+	if [ $? -eq 0 ]; then		
+		echo "`date +%F' '%T` tb_cac_data LAST_EXECUTED ">>$LOG_LOCATION	
+	else 
+		continue;
+	fi
+		
+	$MYSQL  --port=3306 -u VPS_PROD -h $DB_SERVER -p -e "USE vps_prod;CALL TRANSFER_CAC();" 2>>$LOG_LOCATION
+	
+	if [ $? -eq 0 ]; then		
+		echo "`date +%F' '%T` TRANSFER_CAC EXECUTED">>$LOG_LOCATION	
+		status=1
+	else 		
+		status=0
+		continue;
+	fi	
+	
+	if [ $status == 1 ];then	
+		rm -f $LOCAL_FILE_PATH/tmp/$file  2>>$LOG_LOCATION	
+		if [ $? -ne 0 ]; then
+			echo "`date +%F' '%T` rm $file unsuccess ">>$LOG_LOCATION
+		else
+			echo "`date +%F' '%T` rm $file successfully ">>$LOG_LOCATION
+		fi;
+	fi		
+
+done
+
+
+if [ `date +%d` == "01" ] 
+then
+
+	
+	mv $LOG_LOCATION $LOG_LOCATION.tmp
+	awk -v d="$(date -d "1 months ago" "+%F")" '$1>d' $LOG_LOCATION.tmp >$LOG_LOCATION
+	rm  $LOG_LOCATION.tmp
+	
+fi 
+
