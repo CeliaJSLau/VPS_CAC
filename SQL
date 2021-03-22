@@ -1,0 +1,163 @@
+CREATE TABLE `vps_prod`.`tb_cac_data` (
+  `record_id` INT NOT NULL,
+  `timestamp` VARCHAR(45) NULL,
+  `venue_id` INT NOT NULL,
+  `venue_name` VARCHAR(100) NULL,
+  `category` VARCHAR(100) NULL,
+  `compliment` VARCHAR(400) NULL,
+  `create_date` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`record_id`),
+  INDEX `venue_id` (`venue_id` ASC) VISIBLE)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8mb4
+COLLATE = utf8_bin;
+
+
+CREATE DEFINER=`root`@`%` PROCEDURE `TRANSFER_CAC`()
+    READS SQL DATA
+BEGIN
+
+        DECLARE i INTEGER;
+        DECLARE errno INT;
+		DECLARE EXIT HANDLER FOR SQLEXCEPTION
+		BEGIN
+		GET CURRENT DIAGNOSTICS CONDITION 1 errno = MYSQL_ERRNO;
+		SELECT errno AS MYSQL_ERROR;
+		ROLLBACK;
+        END;
+        SET i = 1;
+        SET AUTOCOMMIT=0;
+        SET SESSION binlog_format = 'MIXED';
+        
+        START TRANSACTION;
+        
+        INSERT IGNORE INTO `VPS_UAT`.`tb_form`
+		(#`form_id`,
+		`form_status`,
+		`comp_date`,
+		`comp_item_other`,
+		`other_rank`,
+		`post`,
+		`staff_name`,
+		`abstract`,
+		`reference_no`,
+		`remark`,
+		`attachment`,
+		`attachment_filename`,
+		`subject`,
+		`content`,
+		`active`,
+		`create_date`,
+		`last_update_date`,
+		`last_update_user`,
+		`rank_id`,
+		`hier_id`,
+		`completion_date`,
+		`venue_type`,
+		`venue_type_other`,
+		`created_by`)
+		select
+		#<{form_id: }>,
+		"F",
+		CONVERT(a.timestamp, date),		#comp_date temp
+		'', '', '', '','',
+		concat('CAC_',a.record_id,'_',a.TIMESTAMP), 					#ref_no temp
+		a.compliment,    #remark temp
+		'',
+		null,
+		'',
+		'',
+		1,
+		CURRENT_TIMESTAMP,
+		CURRENT_TIMESTAMP,				
+		"CAC",					#last_update_user temp		
+		452,   							#rank_id temp : 不適用
+		b.hier_id,						#hier_id temp	
+		CONVERT(a.timestamp, datetime),	#completion_date 
+		b.type,
+		null,
+		"CAC"							#created_by 
+		from tb_cac_data a left join tb_venue_hier b on a.venue_id = b.hier_id
+		where date(a.CREATE_DATE)=curdate() order by a.record_id;
+
+		INSERT IGNORE INTO `VPS_UAT`.`tb_form_channel`
+		(`form_id`,
+		`channel_id`,
+		`channel_other`,
+		`sub_channel_id`,
+		`sub_channel_other`)
+		select 
+		form_id,
+		28,
+		null,
+		null,
+		null
+		from tb_form 
+		where  date(create_date)=curdate() and created_by = "CAC" order by form_id;      
+        
+        REPEAT
+           INSERT IGNORE INTO `VPS_UAT`.`tb_form_comp_item`
+			(`form_id`,
+			`item_id`)
+            SELECT a.form_id, 
+			case 
+				when SPLIT_STRING(b.category, ',', i) = 'Staff' then 9
+				when SPLIT_STRING(b.category, ',', i) = 'Venue Environent and Facilities' then 10
+				when SPLIT_STRING(b.category, ',', i) = 'Programmes/Events' then 11		
+                else ''
+			end as item_id			
+            FROM  tb_form a inner join tb_cac_data b on replace(substring_index(a.reference_no,"_",2),"CAC_","") = b.record_id
+            WHERE SPLIT_STRING(b.category, ',', i) IS NOT NULL
+			and date(a.create_date)=curdate() and a.created_by = "CAC" order by b.record_id;
+            SET i = i + 1;
+        UNTIL ROW_COUNT() = 0
+        END REPEAT;
+        
+        COMMIT WORK;
+    END
+	
+	
+	
+CREATE DEFINER=`root`@`%` FUNCTION `SPLIT_STRING`(val TEXT, delim VARCHAR(12), pos INT) RETURNS text CHARSET utf8mb4
+    READS SQL DATA
+BEGIN
+        DECLARE output TEXT;
+        SET output = REPLACE(SUBSTRING(SUBSTRING_INDEX(val, delim, pos), CHAR_LENGTH(SUBSTRING_INDEX(val, delim, pos - 1)) + 1), delim, '');
+        IF output = '' THEN
+            SET output = null;
+        END IF;
+        RETURN output;
+    END
+	
+	
+	
+	
+delimiter |
+CREATE TRIGGER `cacBefIns`
+    BEFORE INSERT ON `tb_cac_data`
+    FOR EACH ROW 
+BEGIN 
+ SET NEW.record_id = (SELECT  IFNULL(MAX(record_id), 0) + 1  FROM  `tb_cac_data`); 
+ END
+ |
+ DELIMITER ;
+ 
+ 
+ delimiter |
+drop trigger `FormBefIns`;
+create TRIGGER `FormBefIns`
+ before insert ON tb_form
+ FOR EACH ROW
+BEGIN 
+ IF NEW.create_date is null 
+ THEN 
+ SET NEW.create_date=CURDATE();   
+ end if;  
+ IF NEW.created_by is null 
+ THEN  
+ SET NEW.created_by=@userid;  
+ end if;   
+ SET NEW.form_id = (SELECT  IFNULL(MAX(form_id), 0) + 1  FROM  tb_form); 
+ END
+ |
+ DELIMITER ;
