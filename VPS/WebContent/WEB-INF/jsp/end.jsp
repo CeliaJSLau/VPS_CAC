@@ -27,12 +27,12 @@ window.close();
 </script>
 <head>
 <meta charset="UTF-8">
-<title>Insert title here</title>
+<title>Customer Appreciation Card</title>
 </head>
 <body>
-<br/><br/><br/><h3 style='text-align: center;font-size:4em'>謝謝!<br>Thank you!</h3>
+<br/><br/><br/><h1 style='text-align: center;font-size:4em'>謝謝!<br>Thank you!</h1>
 
-<h5 style='text-align: center;font-size:1.5em'><a href="https://www.lcsd.gov.hk/"  id="rtn" >瀏覽康文署主頁<br/>Visit LCSD HomePage</a></h5>
+<h2 style='text-align: center;font-size:1.5em'><a href="https://www.lcsd.gov.hk/"  id="rtn" >瀏覽康文署主頁<br/>Visit LCSD HomePage</a></h2>
 <!-- <a href="#" onclick="close_window();" style="align:right">離開及關閉此網頁<br/>Exit and close this browser</a> -->
 
 

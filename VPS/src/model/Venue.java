@@ -3,12 +3,15 @@ package model;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.text.Collator;
 import java.util.Locale;
 import com.google.gson.Gson;
+
+import model.Venue.venueMap;
 
 import java.lang.reflect.Method;
 import java.util.Hashtable;
@@ -204,8 +207,7 @@ public class Venue {
     Collator collator2 =  Collator.getInstance(Locale.SIMPLIFIED_CHINESE); 
 
     int i,j;
-    boolean flag = true;  // will determine when the sort is finished
-    
+    boolean flag = true;  // will determine when the sort is finished    
 
     venueMap temp = new venueMap();
 
@@ -231,6 +233,9 @@ public class Venue {
 
 //	System.out.println("sortedSearchResult:"+(new Gson()).toJson(sortedSearchResult));
 //	System.out.println("searchResult:"+(new Gson()).toJson(searchResult));
+    //Or can use this sorting if it becomes slow
+//    Collections.sort(searchResult,(venueMap o1,venueMap o2)-> Collator.getInstance(Locale.TRADITIONAL_CHINESE).compare(o1.getLabel(),o2.getLabel()));
+//  searchResult.forEach((venueMap t)->System.out.println(t.toString()));
 	}
 
 	return sortedSearchResult;

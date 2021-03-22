@@ -128,10 +128,8 @@ public class CustApprFormServlet extends HttpServlet {
 
   
 			String feedback = request.getParameter("feedback");  
-			System.out.println("feedback is: " + feedback);
-//			String username = request.getParameter("username");  
-			System.out.println("feedback is: " + feedback);
-//			System.out.println("username is: " + username);
+			if(feedback!=null &&!feedback.isEmpty())
+				System.out.println("feedback is: " + feedback);
 			
 			FileData.createCsv(id,feedback,location,category);
 			  
