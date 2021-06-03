@@ -1,4 +1,4 @@
 UAT:
-http://ec2-3-12-165-133.us-east-2.compute.amazonaws.com:8080/VPS/CAC
+http://ec2-3-128-182-146.us-east-2.compute.amazonaws.com:8080/VPS/CAC
 PRD:
 https://www4.lcsd.gov.hk/VPS/CAC
